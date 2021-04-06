@@ -39,7 +39,7 @@ model_params:
      num_blocks: 5
      # Segmentations is predicted on smaller images for better performance,
      # scale_factor=0.25 means that 256x256 image will be resized to 64x64
-     scale_factor: 0.25
+     scale_factor: 0.125
   reconstruction_module_params:
     # Number of features mutliplier
     block_expansion: 64

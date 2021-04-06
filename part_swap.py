@@ -45,12 +45,14 @@ class PartSwapGenerator(ReconstructionModule):
         # Encoding of source image
         enc_source = self.first(source_image)
         for i in range(len(self.down_blocks)):
+            # print('enc src shape', enc_source.shape)
             enc_source = self.down_blocks[i](enc_source)
 
         # Encoding of target image
         enc_target = self.first(target_image)
         for i in range(len(self.down_blocks)):
             enc_target = self.down_blocks[i](enc_target)
+
 
         output_dict = {}
         # Compute flow field for source image
@@ -67,6 +69,7 @@ class PartSwapGenerator(ReconstructionModule):
 
         # Deform source encoding according to the motion
         enc_source = self.deform_input(enc_source, deformation)
+        # print('deform enc src shape', enc_source.shape)
 
         if self.estimate_visibility:
             if self.dense_motion_network is None:
@@ -80,12 +83,23 @@ class PartSwapGenerator(ReconstructionModule):
                 visibility = F.interpolate(visibility, size=enc_source.shape[2:], mode='bilinear')
             enc_source = enc_source * visibility
 
+        # print('bs1', blend_mask.shape)
+
         blend_mask = self.blend_downsample(blend_mask)
+
+
         # If source segmentation is provided use it should be deformed before blending
         if use_source_segmentation:
             blend_mask = self.deform_input(blend_mask, deformation)
 
+        blend_mask = F.interpolate(blend_mask, size=enc_source.shape[-2:], mode='bilinear')
+
+        # print('bs2', blend_mask.shape)
+        
+        # print('before err', enc_target.shape, enc_source.shape, blend_mask.shape)
+
         out = enc_target * (1 - blend_mask) + enc_source * blend_mask
+
 
         out = self.bottleneck(out)
 
@@ -175,6 +189,8 @@ def make_video(swap_index, source_image, target_video, reconstruction_module, se
             target_frame = target[:, :, frame_idx]
             if not cpu:
                 target_frame = target_frame.cuda()
+
+            # print('frame start', source.shape, target_frame.shape)
  
             seg_target = segmentation_module(target_frame)
 
@@ -190,10 +206,13 @@ def make_video(swap_index, source_image, target_video, reconstruction_module, se
             if hard:
                 blend_mask = (blend_mask > 0.5).type(blend_mask.type())
 
+
+
             out = reconstruction_module(source, target_frame, seg_source=seg_source, seg_target=seg_target,
                                         blend_mask=blend_mask, use_source_segmentation=use_source_segmentation)
 
             predictions.append(np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0])
+
         return predictions
 
 
